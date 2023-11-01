@@ -36,14 +36,14 @@
 (eval-when-compile (require 'cl-lib))
 (require 'treesit)
 
-(defface comment-ts-todo-face
-  '((t (:inherit font-lock-warning-face)))
-  "Face to highlight comment todo keywords."
-  :group 'comment-ts)
-
 (defface comment-ts-note-face
   '((t :foreground "SteelBlue"))
   "Face to highlight comment note keywords."
+  :group 'comment-ts)
+
+(defface comment-ts-todo-face
+  '((t (:inherit font-lock-warning-face)))
+  "Face to highlight comment todo keywords."
   :group 'comment-ts)
 
 (defface comment-ts-warning-face
@@ -52,88 +52,84 @@
   :group 'comment-ts)
 
 (defface comment-ts-danger-face
-  '((t (:inherit error)))
+  '((t (:inherit font-lock-warning-face)))
   "Face to highlight comment error keywords."
   :group 'comment-ts)
 
-(defvar comment-ts--feature-list
-  '(() (keyword url) (number) ())
+(defface comment-ts-uri-face
+  '((t (:inherit link)))
+  "Face to highlight URIs in comments."
+  :group 'comment-ts)
+
+(defvar comment-ts-note-keywords
+  '("NOTE" "XXX" "INFO" "DOCS" "PERF" "TEST")
+  "Keywords to highlight with `comment-ts-note-face'.")
+
+(defvar comment-ts-todo-keywords '("TODO" "WIP")
+  "Keywords to highlight with `comment-ts-todo-face'.")
+
+(defvar comment-ts-warning-keywords
+  '("HACK" "WARNING" "WARN" "FIX")
+  "Keywords to highlight with `comment-ts-warning-face'.")
+
+(defvar comment-ts-danger-keywords
+  '("FIXME" "BUG" "ERROR")
+  "Keywords to highlight with `comment-ts-danger-face'.")
+
+(defvar comment-ts-font-lock-feature-list
+  '(() (keyword) (number uri) ())
   "`treesit-font-lock-feature-list' for `comment-ts-mode'.")
 
-(defvar comment-ts--font-lock-settings
+(defun comment-ts--font-lock-rules (type)
+  "Create tree-sitter font-lock rules for keywords of TYPE."
+  (let ((face (intern (format "@comment-ts-%S-face" type)))
+        (keywords (symbol-value (intern (format "comment-ts-%S-keywords" type)))))
+    `(((tag (name) ,face
+            ("(" @font-lock-bracket-face
+             (user) @font-lock-constant-face
+             ")" @font-lock-bracket-face) :?
+            ":" @font-lock-delimiter-face)
+       (:match ,(rx-to-string `(seq bos (or ,@keywords))) ,face))
+
+      (("text" ,face)
+       (:match ,(rx-to-string `(seq bos (or ,@keywords))) ,face)))))
+
+(defun comment-ts-font-lock-rules (types &optional override)
+  "Create tree-sitter font-lock rules for comments using keyword TYPES.
+See `treesit-font-lock-rules' for possible OVERRIDE values."
   (treesit-font-lock-rules
    :language 'comment
    :feature 'keyword
-   `(;; Todos
-     ((tag
-       (name) @comment-ts-todo-face
-       ("(" @font-lock-bracket-face
-        (user) @font-lock-constant-face
-        ")" @font-lock-bracket-face) :?
-       ":" @font-lock-delimiter-face)
-      (:match ,(rx-to-string '(or "TODO" "WIP")) @comment-ts-todo-face))
+   :override override
+   `(,@(mapcan #'comment-ts--font-lock-rules types))
 
-     (("text" @comment-ts-todo-face)
-      (:match ,(rx-to-string '(or "TODO" "WIP")) @comment-ts-todo-face))
-
-     ;; Notes
-     ((tag
-       (name) @comment-ts-note-face
-       ("(" @font-lock-bracket-face
-        (user) @font-lock-constant-face
-        ")" @font-lock-bracket-face) :?
-       ":" @font-lock-delimiter-face)
-      (:match ,(rx-to-string '(or "NOTE" "XXX" "INFO" "DOCS" "PERF" "TEST"))
-              @comment-ts-note-face))
-     (("text" @comment-ts-note-face)
-      (:match ,(rx-to-string '(or "NOTE" "XXX" "INFO" "DOCS" "PERF" "TEST"))
-              @comment-ts-note-face))
-
-     ;; Warnings
-     ((tag
-       (name) @comment-ts-warning-face
-       ("(" @font-lock-bracket-face
-        (user) @font-lock-constant-face
-        ")" @font-lock-bracket-face) :?
-        ":" @font-lock-delimiter-face)
-      (:match ,(rx-to-string '(or "HACK" "WARNING" "WARN" "FIX"))
-              @comment-ts-warning-face))
-     (("text" @comment-ts-warning-face)
-      (:match ,(rx-to-string '(or "HACK" "WARNING" "WARN" "FIX"))
-              @comment-ts-warning-face))
-
-     ;; Danger
-     ((tag
-       (name) @comment-ts-danger-face
-       ("(" @font-lock-bracket-face
-        (user) @font-lock-constant-face
-        ")" @font-lock-bracket-face) :?
-       ":" @punctuation.delimiter)
-      (:match ,(rx-to-string '(or "FIXME" "BUG" "ERROR"))
-              @comment-ts-danger-face))
-
-     (("text" @comment-ts-danger-face)
-      (:match ,(rx-to-string '(or "FIXME" "BUG" "ERROR"))
-              @comment-ts-danger-face)))
-
-   ;; Issue number (#123)
    :language 'comment
    :feature 'number
+   :override override
+   ;; Issue number (#123)
    '((("text" @font-lock-number-face)
-      (:match "^#[0-9]+$" @font-lock-number-face))))
+      (:match "^#[0-9]+$" @font-lock-number-face)))
+
+   :language 'comment
+   :feature 'uri
+   :override override
+   '((uri) @comment-ts-uri-face)))
+
+(defvar comment-ts-font-lock-settings
+  (comment-ts-font-lock-rules '(todo note warning danger) t)
   "Tree-sitter font-lock settings for comments.")
 
 ;;; Major mode
 
 ;;;###autoload
-(define-derived-mode comment-ts-mode prog-mode "Regex"
+(define-derived-mode comment-ts-mode prog-mode "Comment"
   "Major mode for comments."
   :group 'comment
   ;; :syntax-table comment-ts-mode--syntax-table
   (when (treesit-ready-p 'comment)
     (treesit-parser-create 'comment)
-    (setq-local treesit-font-lock-settings comment-ts--font-lock-settings)
-    (setq-local treesit-font-lock-feature-list comment-ts--feature-list)
+    (setq-local treesit-font-lock-settings comment-ts-font-lock-settings)
+    (setq-local treesit-font-lock-feature-list comment-ts-font-lock-feature-list)
     (treesit-major-mode-setup)))
 
 (when (treesit-ready-p 'comment)
