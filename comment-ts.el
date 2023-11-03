@@ -80,6 +80,11 @@
   '(() (keyword) (number uri) ())
   "`treesit-font-lock-feature-list' for `comment-ts-mode'.")
 
+;;; FIXME: indentation rules for embedded comments
+(defvar comment-ts-indent-rules
+  '((comment
+     (catch-all prev-line 0))))
+
 (defun comment-ts--font-lock-rules (type)
   "Create tree-sitter font-lock rules for keywords of TYPE."
   (let ((face (intern (format "@comment-ts-%S-face" type)))
