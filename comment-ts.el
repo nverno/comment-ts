@@ -94,10 +94,10 @@
              (user) @font-lock-constant-face
              ")" @font-lock-bracket-face) :?
             ":" @font-lock-delimiter-face)
-       (:match ,(rx-to-string `(seq bos (or ,@keywords))) ,face))
+       (:match ,(rx-to-string `(seq bos (or ,@keywords) eos)) ,face))
 
       (("text" ,face)
-       (:match ,(rx-to-string `(seq bos (or ,@keywords))) ,face)))))
+       (:match ,(rx-to-string `(seq bos (or ,@keywords) eos)) ,face)))))
 
 (defun comment-ts-font-lock-rules (types &optional override)
   "Create tree-sitter font-lock rules for comments using keyword TYPES.
